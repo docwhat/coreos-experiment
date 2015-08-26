@@ -43,12 +43,18 @@ Vagrant.configure('2') do |config|
     end
     master.vm.provision(:shell, run: 'always', inline: <<-SHELL, privileged: true)
 set -eu
+# Disable IPv6
+echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
+
 mv -f /tmp/vagrantfile-user-data  /var/lib/coreos-vagrant/vagrantfile-user-data
+
 mkdir -p /var/run/kubernetes
 mv -f /tmp/apiserver.crt /var/run/kubernetes/apiserver.crt
 # TODO chmod/chown key
 mv -f /tmp/apiserver.key /var/run/kubernetes/apiserver.key
 mv -f /tmp/ca.crt /var/run/kubernetes/ca.crt
+
+# TODO chmod/chown csv
 mv -f /tmp/known_tokens.csv /var/run/kubernetes/known_tokens.csv
     SHELL
   end
@@ -71,6 +77,9 @@ mv -f /tmp/known_tokens.csv /var/run/kubernetes/known_tokens.csv
 
       node.vm.provision(:shell, run: 'always', inline: <<-SHELL, privileged: true)
 set -eu
+# Disable IPv6
+echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
+
 mv -f /tmp/vagrantfile-user-data  /var/lib/coreos-vagrant/vagrantfile-user-data
 
 mkdir -p /var/lib/kube-proxy
