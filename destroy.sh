@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -eu
+
+for i in master node1 node2 node3; do
+  tmux new-window -c "$PWD" -n "${i} destroy" vagrant destroy -f "$i"
+done
