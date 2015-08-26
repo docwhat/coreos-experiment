@@ -4,6 +4,7 @@ metadata:
   name: redis-slave
   labels:
     name: redis-slave
+    app: guestbook
 spec:
   ports:
     # the port that this service should serve on
