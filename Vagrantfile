@@ -4,6 +4,7 @@
 require 'fileutils'
 
 Vagrant.require_version '>= 1.6.0'
+TOP_DIR = File.dirname(__FILE__)
 
 Vagrant.configure('2') do |config|
   # always use Vagrants insecure key
@@ -31,33 +32,59 @@ Vagrant.configure('2') do |config|
     master.vm.network :private_network, ip: '172.17.8.100'
     master.vm.network 'forwarded_port', guest: 8080, host: 8080
 
-    master.vm.provision(
-      :file,
-      source: File.expand_path('../master.yml', __FILE__),
-      destination: '/tmp/vagrantfile-user-data'
-    )
-    master.vm.provision(
-      :shell,
-      inline: 'mv -f /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/',
-      privileged: true
-    )
+    {
+      'vagrantfile-user-data' => 'master.yml',
+      'apiserver.crt' => 'certs/server.crt',
+      'apiserver.key' => 'certs/server.key',
+      'ca.crt' => 'certs/ca.crt',
+      'known_tokens.csv' => 'known_tokens.csv'
+    }.each_pair do |dest, src|
+      master.vm.provision :file, run: 'always', source: File.join(TOP_DIR, src), destination: "/tmp/#{dest}"
+    end
+    master.vm.provision(:shell, run: 'always', inline: <<-SHELL, privileged: true)
+set -eu
+mv -f /tmp/vagrantfile-user-data  /var/lib/coreos-vagrant/vagrantfile-user-data
+mkdir -p /var/run/kubernetes
+mv -f /tmp/apiserver.crt /var/run/kubernetes/apiserver.crt
+# TODO chmod/chown key
+mv -f /tmp/apiserver.key /var/run/kubernetes/apiserver.key
+mv -f /tmp/ca.crt /var/run/kubernetes/ca.crt
+mv -f /tmp/known_tokens.csv /var/run/kubernetes/known_tokens.csv
+    SHELL
   end
 
-  (1..ENV.fetch('NUM_NODES', 1).to_i).each do |num|
+  (1..ENV.fetch('NUM_NODES', 3).to_i).each do |num|
     config.vm.define "node#{num}" do |node|
       node.vm.hostname = "node#{num}"
       node.vm.network :private_network, ip: "172.17.8.#{100 + num}"
 
-      node.vm.provision(
-        :file,
-        source: File.expand_path('../node.yml', __FILE__),
-        destination: '/tmp/vagrantfile-user-data'
-      )
-      node.vm.provision(
-        :shell,
-        inline: 'mv -f /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/',
-        privileged: true
-      )
+      {
+        'vagrantfile-user-data' => 'node.yml',
+        'kubecfg.crt' => 'certs/kubecfg.crt',
+        'kubecfg.key' => 'certs/kubecfg.key',
+        'ca.crt' => 'certs/ca.crt',
+        'kube-proxy-kubeconfig' => 'kubeconfig.json',
+        'kubelet-kubeconfig'    => 'kubeconfig.json'
+      }.each_pair do |dest, src|
+        node.vm.provision :file, run: 'always', source: File.join(TOP_DIR, src), destination: "/tmp/#{dest}"
+      end
+
+      node.vm.provision(:shell, run: 'always', inline: <<-SHELL, privileged: true)
+set -eu
+mv -f /tmp/vagrantfile-user-data  /var/lib/coreos-vagrant/vagrantfile-user-data
+
+mkdir -p /var/lib/kube-proxy
+mv -f /tmp/kube-proxy-kubeconfig /var/lib/kube-proxy/kubeconfig
+
+mkdir -p /var/lib/kubelet
+mv -f /tmp/kubelet-kubeconfig /var/lib/kubelet/kubeconfig
+
+mkdir -p /var/run/kubernetes
+cat /tmp/kubecfg.crt /tmp/ca.crt > /var/run/kubernetes/kubecfg.crt
+rm -f /tmp/kubecfg.crt /tmp/ca.crt
+# TODO chmod/chown
+mv -f /tmp/kubecfg.key /var/run/kubernetes/kubecfg.key
+      SHELL
     end
   end
 end

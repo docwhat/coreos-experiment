@@ -9,10 +9,19 @@ write-files:
         --silent --head --fail \
         http://${1}:${2}; do sleep 1 && echo -n .; done;
       exit $?
+  - path: /opt/bin/post-setup-network-environment
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -eu
+
+      ip=$(ip -4 -o addr | cut -f7 -d ' ' | cut -f1 -d '/' | grep 172)
+      echo "DEFAULT_IPV4=$ip" >> /etc/network-environment
+      # EOF
 coreos:
   etcd2:
-    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
-    advertise-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    listen-client-urls: http://0.0.0.0:2379
+    advertise-client-urls: http://0.0.0.0:2379
     initial-cluster: master=http://172.17.8.100:2380
     #proxy: on
   fleet:
@@ -44,6 +53,7 @@ coreos:
         ExecStartPre=/usr/bin/curl -L -o /opt/bin/setup-network-environment -z /opt/bin/setup-network-environment https://github.com/kelseyhightower/setup-network-environment/releases/download/v1.0.0/setup-network-environment
         ExecStartPre=/usr/bin/chmod +x /opt/bin/setup-network-environment
         ExecStart=/opt/bin/setup-network-environment
+        ExecStartPost=/opt/bin/post-setup-network-environment
         RemainAfterExit=yes
         Type=oneshot
     - name: kube-proxy.service
@@ -58,9 +68,12 @@ coreos:
         ExecStartPre=/usr/bin/curl -L -o /opt/bin/kube-proxy -z /opt/bin/kube-proxy https://storage.googleapis.com/kubernetes-release/release/v0.19.3/bin/linux/amd64/kube-proxy
         ExecStartPre=/usr/bin/chmod +x /opt/bin/kube-proxy
         # wait for kubernetes master to be up and ready
-        ExecStartPre=/opt/bin/wupiao 172.17.8.100 8080
+        ExecStartPre=/opt/bin/wupiao 172.17.8.100 6443
         ExecStart=/opt/bin/kube-proxy \
-        --master=172.17.8.100:8080 \
+        --master=https://172.17.8.100:6443 \
+        --kubeconfig=/var/lib/kube-proxy/kubeconfig \
+        --tls-cert-file=/var/run/kubernetes/kubecfg.crt \
+        --tls-private-key-file=/var/run/kubernetes/kubecfg.key \
         --logtostderr=true
         Restart=always
         RestartSec=10
@@ -77,12 +90,13 @@ coreos:
         ExecStartPre=/usr/bin/curl -L -o /opt/bin/kubelet -z /opt/bin/kubelet https://storage.googleapis.com/kubernetes-release/release/v0.19.3/bin/linux/amd64/kubelet
         ExecStartPre=/usr/bin/chmod +x /opt/bin/kubelet
         # wait for kubernetes master to be up and ready
-        ExecStartPre=/opt/bin/wupiao 172.17.8.100 8080
+        ExecStartPre=/opt/bin/wupiao 172.17.8.100 6443
         ExecStart=/opt/bin/kubelet \
         --address=0.0.0.0 \
         --port=10250 \
         --hostname_override=${DEFAULT_IPV4} \
-        --api_servers=172.17.8.100:8080 \
+        --api_servers=https://172.17.8.100:6443 \
+        --kubeconfig=/var/lib/kubelet/kubeconfig \
         --allow_privileged=true \
         --logtostderr=true \
         --cadvisor_port=4194 \

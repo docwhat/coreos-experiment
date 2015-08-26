@@ -16,14 +16,23 @@ write-files:
           sleep 1 && echo .;
         done;
       exit $?
+  - path: /opt/bin/post-setup-network-environment
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -eu
+
+      ip=$(ip -4 -o addr | cut -f7 -d ' ' | cut -f1 -d '/' | grep 172)
+      echo "DEFAULT_IPV4=$ip" >> /etc/network-environment
+      # EOF
 hostname: master
 coreos:
   etcd2:
     name: master
-    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
-    advertise-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
+    listen-client-urls: http://0.0.0.0:2379
+    advertise-client-urls: http://$private_ipv4:2379
     initial-cluster-token: k8s_etcd
-    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+    listen-peer-urls: http://$private_ipv4:2380
     initial-advertise-peer-urls: http://$private_ipv4:2380
     initial-cluster: master=http://$private_ipv4:2380
     initial-cluster-state: new
@@ -53,6 +62,7 @@ coreos:
         ExecStartPre=/usr/bin/curl -L -o /opt/bin/setup-network-environment -z /opt/bin/setup-network-environment https://github.com/kelseyhightower/setup-network-environment/releases/download/v1.0.0/setup-network-environment
         ExecStartPre=/usr/bin/chmod +x /opt/bin/setup-network-environment
         ExecStart=/opt/bin/setup-network-environment
+        ExecStartPost=/opt/bin/post-setup-network-environment
         RemainAfterExit=yes
         Type=oneshot
     - name: fleet.service
@@ -83,16 +93,19 @@ coreos:
         ExecStartPre=/usr/bin/chmod +x /opt/bin/kube-apiserver
         ExecStartPre=/opt/bin/wupiao 127.0.0.1:2379/v2/machines
         ExecStart=/opt/bin/kube-apiserver \
-        --service_account_key_file=/opt/bin/kube-serviceaccount.key \
-        --service_account_lookup=false \
-        --admission_control=NamespaceLifecycle,NamespaceAutoProvision,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota \
+        --admission_control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota \
         --runtime_config=api/v1 \
         --allow_privileged=true \
         --insecure_bind_address=0.0.0.0 \
         --insecure_port=8080 \
         --kubelet_https=true \
+        --bind_address=0.0.0.0 \
         --secure_port=6443 \
+        --tls-cert-file=/var/run/kubernetes/apiserver.crt \
+        --tls-private-key-file=/var/run/kubernetes/apiserver.key \
+        --client-ca-file=/var/run/kubernetes/ca.crt \
         --service-cluster-ip-range=10.100.0.0/16 \
+        --token-auth-file=/var/run/kubernetes/known_tokens.csv \
         --etcd_servers=http://127.0.0.1:2379 \
         --public_address_override=${DEFAULT_IPV4} \
         --logtostderr=true
