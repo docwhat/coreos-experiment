@@ -3,8 +3,8 @@ kind: ReplicationController
 metadata:
   name: redis-master
   labels:
-    name: redis-master
     app: guestbook
+    name: redis-master
 spec:
   replicas: 1
   selector:
@@ -12,6 +12,7 @@ spec:
   template:
     metadata:
       labels:
+        app: guestbook
         name: redis-master
     spec:
       containers:

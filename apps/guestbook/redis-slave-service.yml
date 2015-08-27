@@ -3,8 +3,8 @@ kind: Service
 metadata:
   name: redis-slave
   labels:
-    name: redis-slave
     app: guestbook
+    name: redis-slave
 spec:
   ports:
     # the port that this service should serve on

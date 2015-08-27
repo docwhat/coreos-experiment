@@ -3,8 +3,8 @@ kind: ReplicationController
 metadata:
   name: frontend
   labels:
-    name: frontend
     app: guestbook
+    name: frontend
 spec:
   replicas: 3
   selector:
@@ -12,6 +12,7 @@ spec:
   template:
     metadata:
       labels:
+        app: guestbook
         name: frontend
     spec:
       containers:
