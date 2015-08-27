@@ -21,16 +21,16 @@ Vagrant.configure('2') do |config|
   end
   config.vbguest.auto_update = false if Vagrant.has_plugin?('vagrant-vbguest')
 
-  config.vm.provider :virtualbox do |vb|
-    vb.gui = false
-    vb.memory = 768
-    vb.cpus = 1
-  end
-
   config.vm.define 'master', primary: true do |master|
     master.vm.hostname = 'master'
     master.vm.network :private_network, ip: '172.17.8.100'
     master.vm.network 'forwarded_port', guest: 8080, host: 8080
+
+    master.vm.provider :virtualbox do |vb|
+      vb.gui = false
+      vb.memory = 512
+      vb.cpus = 1
+    end
 
     {
       'vagrantfile-user-data' => 'master.yml',
@@ -64,6 +64,11 @@ mv -f /tmp/known_tokens.csv /var/run/kubernetes/known_tokens.csv
       node.vm.hostname = "node#{num}"
       node.vm.network :private_network, ip: "172.17.8.#{100 + num}"
 
+      node.vm.provider :virtualbox do |vb|
+        vb.gui = false
+        vb.memory = 768
+        vb.cpus = 1
+      end
       {
         'vagrantfile-user-data' => 'node.yml',
         'kubecfg.crt' => 'certs/kubecfg.crt',
